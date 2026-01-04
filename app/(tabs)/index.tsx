@@ -6,6 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { calculateInheritance, FIQH_DATABASE, type EstateData, type HeirsData, type CalculationResult } from '@/lib/inheritance-calculator';
+import Collapsible from '@/components/ui/collapsible';
 
 const MADHABS = ['shafii', 'hanafi', 'maliki', 'hanbali'] as const;
 type MadhabhKey = typeof MADHABS[number];
@@ -49,12 +50,27 @@ export default function HomeScreen() {
   // حالة النتائج
   const [results, setResults] = useState<CalculationResult | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    steps: false,
+    validation: false,
+    comparison: false,
+  });
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonResults, setComparisonResults] = useState<Record<MadhabhKey, CalculationResult | null>>({} as any);
 
   // دالة الحساب
   const handleCalculate = useCallback(() => {
     const result = calculateInheritance(selectedMadhab, estateData, heirsData);
     setResults(result);
     setShowResults(true);
+    setExpandedSections({ steps: false, validation: false, comparison: false });
+
+    // حساب النتائج لجميع المذاهب للمقارنة
+    const allMadhabs: Record<MadhabhKey, CalculationResult | null> = {} as any;
+    MADHABS.forEach(madhab => {
+      allMadhabs[madhab] = calculateInheritance(madhab, estateData, heirsData);
+    });
+    setComparisonResults(allMadhabs);
   }, [selectedMadhab, estateData, heirsData]);
 
   // دالة إعادة التعيين
@@ -104,6 +120,29 @@ export default function HomeScreen() {
   };
 
   const madhab = FIQH_DATABASE.madhabs[selectedMadhab];
+
+  // دالة تبديل قسم محدد
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  // دالة الحصول على رمز الحالة الخاصة
+  const getSpecialCaseIcon = (result: CalculationResult) => {
+    if (result.specialCases?.includes('umariyyah')) return '⚠️ عمرية';
+    if (result.specialCases?.includes('awl')) return '📊 عول';
+    return null;
+  };
+
+  // دالة الحصول على لون الثقة
+  const getConfidenceColor = (confidence?: number) => {
+    if (!confidence) return '#10b981';
+    if (confidence >= 0.9) return '#10b981'; // أخضر - عالي
+    if (confidence >= 0.7) return '#f59e0b'; // برتقالي - متوسط
+    return '#ef4444'; // أحمر - منخفض
+  };
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
@@ -230,6 +269,46 @@ export default function HomeScreen() {
           </>
         ) : results ? (
           <>
+            {/* رسالة الحالة الخاصة */}
+            {getSpecialCaseIcon(results) && (
+              <View style={[styles.section, styles.specialCaseBox]}>
+                <ThemedText type="defaultSemiBold" style={styles.specialCaseText}>
+                  {getSpecialCaseIcon(results)}
+                </ThemedText>
+                {results.specialCases?.includes('umariyyah') && (
+                  <ThemedText style={styles.specialCaseDetail}>
+                    حالة عمرية: قال عمر بن الخطاب - للزوج النصف والباقي لولي المتوفاة من عصبة
+                  </ThemedText>
+                )}
+                {results.specialCases?.includes('awl') && (
+                  <ThemedText style={styles.specialCaseDetail}>
+                    عول: مجموع الفروض أكثر من الواحد، فتعول المسألة وتقل أنصبة الورثة
+                  </ThemedText>
+                )}
+              </View>
+            )}
+
+            {/* تحذيرات التحقق */}
+            {results.warnings && results.warnings.length > 0 && (
+              <View style={[styles.section, styles.warningBox]}>
+                <Pressable onPress={() => toggleSection('validation')}>
+                  <View style={styles.collapsibleHeader}>
+                    <ThemedText type="defaultSemiBold">⚠️ تنبيهات ({results.warnings.length})</ThemedText>
+                    <ThemedText>{expandedSections.validation ? '−' : '+'}</ThemedText>
+                  </View>
+                </Pressable>
+                {expandedSections.validation && (
+                  <View style={styles.collapsibleContent}>
+                    {results.warnings.map((warning, idx) => (
+                      <ThemedText key={idx} style={styles.warningText}>
+                        • {warning}
+                      </ThemedText>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* النتائج */}
             <View style={styles.section}>
               <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>نتائج الحساب</ThemedText>
@@ -248,6 +327,21 @@ export default function HomeScreen() {
                     {results.finalBase}
                   </ThemedText>
                 </View>
+
+                {results.confidence !== undefined && (
+                  <View style={styles.resultItem}>
+                    <ThemedText style={styles.resultLabel}>مستوى الثقة</ThemedText>
+                    <ThemedText 
+                      type="defaultSemiBold" 
+                      style={[
+                        styles.resultValue,
+                        { color: getConfidenceColor(results.confidence) }
+                      ]}
+                    >
+                      {Math.round(results.confidence * 100)}%
+                    </ThemedText>
+                  </View>
+                )}
               </View>
 
               {/* جدول النتائج */}
@@ -269,6 +363,94 @@ export default function HomeScreen() {
                 ))}
               </View>
             </View>
+
+            {/* خطوات الحساب */}
+            {results.steps && results.steps.length > 0 && (
+              <View style={styles.section}>
+                <Pressable onPress={() => toggleSection('steps')}>
+                  <View style={styles.collapsibleHeader}>
+                    <ThemedText type="defaultSemiBold">📋 خطوات الحساب ({results.steps.length})</ThemedText>
+                    <ThemedText>{expandedSections.steps ? '−' : '+'}</ThemedText>
+                  </View>
+                </Pressable>
+                {expandedSections.steps && (
+                  <View style={styles.collapsibleContent}>
+                    {results.steps.map((step, idx) => (
+                      <View key={idx} style={styles.stepItem}>
+                        <ThemedText type="defaultSemiBold" style={styles.stepNumber}>
+                          خطوة {idx + 1}: {step.step}
+                        </ThemedText>
+                        <ThemedText style={styles.stepDescription}>
+                          {step.description}
+                        </ThemedText>
+                        {step.result && (
+                          <ThemedText style={styles.stepResult}>
+                            النتيجة: {step.result}
+                          </ThemedText>
+                        )}
+                        {step.notes && (
+                          <ThemedText style={styles.stepNotes}>
+                            ملاحظة: {step.notes}
+                          </ThemedText>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* مقارنة المذاهب */}
+            {Object.keys(comparisonResults).length > 1 && (
+              <View style={styles.section}>
+                <Pressable onPress={() => toggleSection('comparison')}>
+                  <View style={styles.collapsibleHeader}>
+                    <ThemedText type="defaultSemiBold">🔄 مقارنة المذاهب</ThemedText>
+                    <ThemedText>{expandedSections.comparison ? '−' : '+'}</ThemedText>
+                  </View>
+                </Pressable>
+                {expandedSections.comparison && (
+                  <View style={styles.collapsibleContent}>
+                    {MADHABS.map(madhab_key => {
+                      const madhab_result = comparisonResults[madhab_key];
+                      const madhab_config = FIQH_DATABASE.madhabs[madhab_key];
+                      
+                      if (!madhab_result) return null;
+
+                      return (
+                        <View key={madhab_key} style={[
+                          styles.comparisonItem,
+                          { borderLeftColor: madhab_config.color, borderLeftWidth: 4 }
+                        ]}>
+                          <ThemedText type="defaultSemiBold" style={styles.comparisonMadhab}>
+                            {madhab_config.name}
+                          </ThemedText>
+                          <View style={styles.comparisonRow}>
+                            <ThemedText style={styles.comparisonLabel}>أصل المسألة:</ThemedText>
+                            <ThemedText type="defaultSemiBold">{madhab_result.finalBase}</ThemedText>
+                          </View>
+                          <View style={styles.comparisonRow}>
+                            <ThemedText style={styles.comparisonLabel}>صيغة الحساب:</ThemedText>
+                            <ThemedText type="defaultSemiBold">{madhab_config.name}</ThemedText>
+                          </View>
+                          <View style={styles.comparisonShares}>
+                            {madhab_result.shares.slice(0, 3).map((share, idx) => (
+                              <View key={idx} style={styles.comparisionShareItem}>
+                                <ThemedText style={styles.comparisonShareName}>{share.name}</ThemedText>
+                                <ThemedText style={styles.comparisonShareAmount}>{share.amount.toFixed(0)}</ThemedText>
+                              </View>
+                            ))}
+                            {madhab_result.shares.length > 3 && (
+                              <ThemedText style={styles.comparisonMore}>+{madhab_result.shares.length - 3}</ThemedText>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* أزرار الإجراءات */}
             <View style={styles.buttonGroup}>
@@ -435,5 +617,125 @@ const styles = StyleSheet.create({
   tableCellHeader: {
     fontWeight: '600',
     fontSize: 11,
+  },
+  specialCaseBox: {
+    backgroundColor: '#fef3c7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+    paddingHorizontal: 12,
+  },
+  specialCaseText: {
+    fontSize: 16,
+    marginBottom: 8,
+    color: '#92400e',
+  },
+  specialCaseDetail: {
+    fontSize: 13,
+    color: '#92400e',
+    lineHeight: 20,
+  },
+  warningBox: {
+    backgroundColor: '#fee2e2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#991b1b',
+    marginVertical: 4,
+    lineHeight: 18,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  collapsibleContent: {
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  stepItem: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  stepNumber: {
+    fontSize: 13,
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  stepDescription: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  stepResult: {
+    fontSize: 12,
+    color: '#0891b2',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  stepNotes: {
+    fontSize: 12,
+    color: '#7c3aed',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  comparisonItem: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  comparisonMadhab: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    paddingVertical: 4,
+  },
+  comparisonLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  comparisonShares: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  comparisionShareItem: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  comparisonShareName: {
+    fontSize: 11,
+    color: '#666',
+  },
+  comparisonShareAmount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111',
+    marginTop: 2,
+  },
+  comparisonMore: {
+    fontSize: 12,
+    color: '#999',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
 });

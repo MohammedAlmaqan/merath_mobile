@@ -120,3 +120,24 @@ export async function deleteSavedReport(id: string) {
   }
   return false;
 }
+
+export async function saveFileFromUri(uri: string, ext = 'pdf', prefix = 'merath-report') {
+  // Copies a cached uri (file://...) into persistent documentDirectory and returns new path
+  const FileSystem = await import('expo-file-system');
+  const filename = `${prefix}-${Date.now()}.${ext}`;
+  const dest = `${FileSystem.documentDirectory}${filename}`;
+  try {
+    // @ts-ignore
+    await FileSystem.copyAsync({ from: uri, to: dest });
+    return dest;
+  } catch (e) {
+    // fallback: try move
+    try {
+      // @ts-ignore
+      await FileSystem.moveAsync({ from: uri, to: dest });
+      return dest;
+    } catch (err) {
+      throw err;
+    }
+  }
+}

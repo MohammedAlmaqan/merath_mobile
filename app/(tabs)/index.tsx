@@ -223,10 +223,10 @@ export default function HomeScreen() {
       if (type === 'pdf') {
         const html = generateReportHTML(results, selectedMadhab);
         const { uri } = await Print.printToFileAsync({ html });
-        // copy to app storage for persistence
-        const dest = uri; // Print returns file:// uri inside cache; save metadata only
-        const meta = await saveReportMetadata({ path: dest, name: `تقرير_${selectedMadhab}`, madhab: selectedMadhab, type: 'pdf' });
-        Alert.alert('تم الحفظ', 'تم حفظ التقرير مؤقتاً في الجهاز');
+        // copy cached PDF into persistent storage and save metadata
+        const persistent = await (await import('@/lib/report')).saveFileFromUri(uri, 'pdf');
+        await saveReportMetadata({ path: persistent, name: `تقرير_${selectedMadhab}`, madhab: selectedMadhab, type: 'pdf' });
+        Alert.alert('تم الحفظ', 'تم حفظ التقرير في وحدة تخزين التطبيق');
       } else {
         const csv = generateCSV(results);
         const path = await saveFile(csv, 'csv');

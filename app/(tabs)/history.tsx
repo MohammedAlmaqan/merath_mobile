@@ -1,12 +1,18 @@
-import { View, StyleSheet, Pressable, FlatList, Text, Alert } from 'react-native';
+import { View, StyleSheet, Pressable, FlatList, Text, Alert, Modal, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useEffect, useState } from 'react';
 import { getSavedReports, deleteSavedReport, type SavedReport } from '@/lib/report';
 import * as Sharing from 'expo-sharing';
+import { useCallback } from 'react';
+import { WebView } from 'react-native-webview';
+
 
 export default function HistoryScreen() {
   const [reports, setReports] = useState<SavedReport[]>([]);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const load = async () => {
     const list = await getSavedReports();
@@ -30,6 +36,27 @@ export default function HistoryScreen() {
     }
   };
 
+  const onPreview = useCallback(async (r: SavedReport) => {
+    setLoadingPreview(true);
+    try {
+      if (r.type === 'pdf') {
+        setPreviewUri(r.path);
+        setPreviewVisible(true);
+      } else {
+        // CSV preview: read file contents
+        const FileSystem = await import('expo-file-system');
+        // @ts-ignore
+        const content = await FileSystem.readAsStringAsync(r.path, { encoding: FileSystem.EncodingType.UTF8 });
+        setPreviewUri('data:text/plain;base64,' + Buffer.from(content).toString('base64'));
+        setPreviewVisible(true);
+      }
+    } catch (e) {
+      Alert.alert('فشل التحميل');
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, []);
+
   return (
     <ThemedView style={styles.container}>
       <FlatList
@@ -42,6 +69,9 @@ export default function HistoryScreen() {
               <ThemedText style={styles.meta}>{item.madhab} • {new Date(item.createdAt).toLocaleString()}</ThemedText>
             </View>
             <View style={styles.actions}>
+              <Pressable onPress={() => onPreview(item)} style={[styles.actionButton, { backgroundColor: '#0ea5e9' }]}>
+                <ThemedText style={styles.actionText}>عرض</ThemedText>
+              </Pressable>
               <Pressable onPress={() => onShare(item)} style={[styles.actionButton, styles.share]}>
                 <ThemedText style={styles.actionText}>مشاركة</ThemedText>
               </Pressable>
@@ -57,6 +87,29 @@ export default function HistoryScreen() {
           </View>
         )}
       />
+      <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
+        <ThemedView style={{ flex: 1 }}>
+          <View style={{ padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <ThemedText type="defaultSemiBold">معاينة التقرير</ThemedText>
+            <Pressable onPress={() => setPreviewVisible(false)} style={{ padding: 8 }}>
+              <ThemedText>إغلاق</ThemedText>
+            </Pressable>
+          </View>
+          {loadingPreview ? (
+            <ActivityIndicator />
+          ) : previewUri ? (
+            previewUri.startsWith('data:') ? (
+              <WebView originWhitelist={["*"]} source={{ uri: previewUri }} style={{ flex: 1 }} />
+            ) : (
+              <WebView originWhitelist={["*"]} source={{ uri: previewUri }} style={{ flex: 1 }} />
+            )
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ThemedText>لا يوجد ملف للمعاينة</ThemedText>
+            </View>
+          )}
+        </ThemedView>
+      </Modal>
     </ThemedView>
   );
 }

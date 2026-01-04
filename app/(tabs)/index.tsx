@@ -1,4 +1,4 @@
-import { ScrollView, View, StyleSheet, Pressable, TextInput, FlatList, Text } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, TextInput, FlatList, Text, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useCallback } from 'react';
 import { ThemedText } from '@/components/themed-text';
@@ -7,6 +7,9 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { calculateInheritance, FIQH_DATABASE, type EstateData, type HeirsData, type CalculationResult } from '@/lib/inheritance-calculator';
 import Collapsible from '@/components/ui/collapsible';
+import * as Print from 'expo-print';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const MADHABS = ['shafii', 'hanafi', 'maliki', 'hanbali'] as const;
 type MadhabhKey = typeof MADHABS[number];
@@ -143,6 +146,80 @@ export default function HomeScreen() {
     if (confidence >= 0.7) return '#f59e0b'; // برتقالي - متوسط
     return '#ef4444'; // أحمر - منخفض
   };
+
+  // --- Export helpers (PDF / CSV) ---
+  const generateReportHTML = (result: CalculationResult, madhabKey: MadhabhKey) => {
+    const madhabConfig = FIQH_DATABASE.madhabs[madhabKey];
+    const rows = result.shares.map(s => `
+      <tr>
+        <td style="padding:8px;border:1px solid #ddd">${s.name}</td>
+        <td style="padding:8px;border:1px solid #ddd;text-align:center">${s.count}</td>
+        <td style="padding:8px;border:1px solid #ddd;text-align:center">${s.fraction.toString()}</td>
+        <td style="padding:8px;border:1px solid #ddd;text-align:right">${s.amount.toFixed(2)}</td>
+      </tr>`).join('\n');
+
+    return `
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>body{font-family:Arial,Helvetica,sans-serif;direction:rtl;text-align:right} table{border-collapse:collapse;width:100%}</style>
+      </head>
+      <body>
+        <h2>نتيجة حساب المواريث - ${madhabConfig.name}</h2>
+        <p><strong>التركة الصافية:</strong> ${result.netEstate.toFixed(2)} ريال</p>
+        <p><strong>أصل المسألة:</strong> ${result.finalBase}</p>
+        <p><strong>مستوى الثقة:</strong> ${result.confidence ? Math.round(result.confidence * 100) + '%' : 'N/A'}</p>
+        <h3>تفصيل الأنصبة</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="padding:8px;border:1px solid #ddd">الوارث</th>
+              <th style="padding:8px;border:1px solid #ddd">العدد</th>
+              <th style="padding:8px;border:1px solid #ddd">النصيب</th>
+              <th style="padding:8px;border:1px solid #ddd">المبلغ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <hr/>
+        <p>مولّد بواسطة تطبيق مرث (Merath) - الجوال</p>
+      </body>
+      </html>
+    `;
+  };
+
+  const handleExportPDF = useCallback(async (madhabKey?: MadhabhKey) => {
+    try {
+      if (!results) return Alert.alert('لا توجد نتيجة للتصدير');
+      const key = madhabKey ?? selectedMadhab;
+      const html = generateReportHTML(results, key);
+      const { uri } = await Print.printToFileAsync({ html });
+      const dest = `${FileSystem.documentDirectory}merath-report-${Date.now()}.pdf`;
+      await FileSystem.copyAsync({ from: uri, to: dest });
+      await Sharing.shareAsync(dest, { mimeType: 'application/pdf' });
+    } catch (err: any) {
+      console.error('PDF export error', err);
+      Alert.alert('خطأ', 'فشل إنشاء ملف PDF');
+    }
+  }, [results, selectedMadhab]);
+
+  const handleExportCSV = useCallback(async (madhabKey?: MadhabhKey) => {
+    try {
+      if (!results) return Alert.alert('لا توجد نتيجة للتصدير');
+      const key = madhabKey ?? selectedMadhab;
+      const header = ['heir,count,share,amount'];
+      const rows = results.shares.map(s => `${JSON.stringify(s.name)},${s.count},${JSON.stringify(s.fraction.toString())},${s.amount.toFixed(2)}`);
+      const csv = header.concat(rows).join('\n');
+      const path = `${FileSystem.documentDirectory}merath-report-${Date.now()}.csv`;
+      await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(path, { mimeType: 'text/csv' });
+    } catch (err: any) {
+      console.error('CSV export error', err);
+      Alert.alert('خطأ', 'فشل إنشاء ملف CSV');
+    }
+  }, [results, selectedMadhab]);
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
@@ -468,6 +545,22 @@ export default function HomeScreen() {
                 <ThemedText style={styles.buttonText}>تعديل</ThemedText>
               </Pressable>
             </View>
+            {/* Export Buttons */}
+            <View style={[styles.buttonGroup, { marginTop: 12 }]}>
+              <Pressable
+                onPress={() => handleExportPDF()}
+                style={[styles.button, styles.pdfButton]}
+              >
+                <ThemedText style={styles.buttonText}>تصدير PDF</ThemedText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleExportCSV()}
+                style={[styles.button, styles.csvButton]}
+              >
+                <ThemedText style={styles.buttonText}>تصدير CSV</ThemedText>
+              </Pressable>
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -737,5 +830,11 @@ const styles = StyleSheet.create({
     color: '#999',
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  pdfButton: {
+    backgroundColor: '#111827',
+  },
+  csvButton: {
+    backgroundColor: '#2563eb',
   },
 });

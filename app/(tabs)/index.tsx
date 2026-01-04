@@ -8,8 +8,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { calculateInheritance, FIQH_DATABASE, type EstateData, type HeirsData, type CalculationResult } from '@/lib/inheritance-calculator';
 import Collapsible from '@/components/ui/collapsible';
 import * as Print from 'expo-print';
-import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { generateReportHTML, generateCSV, saveFile, saveReportMetadata } from '@/lib/report';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MADHABS = ['shafii', 'hanafi', 'maliki', 'hanbali'] as const;
 type MadhabhKey = typeof MADHABS[number];
@@ -196,9 +197,8 @@ export default function HomeScreen() {
       const key = madhabKey ?? selectedMadhab;
       const html = generateReportHTML(results, key);
       const { uri } = await Print.printToFileAsync({ html });
-      const dest = `${FileSystem.documentDirectory}merath-report-${Date.now()}.pdf`;
-      await FileSystem.copyAsync({ from: uri, to: dest });
-      await Sharing.shareAsync(dest, { mimeType: 'application/pdf' });
+      // share the generated PDF
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
     } catch (err: any) {
       console.error('PDF export error', err);
       Alert.alert('خطأ', 'فشل إنشاء ملف PDF');
@@ -208,16 +208,34 @@ export default function HomeScreen() {
   const handleExportCSV = useCallback(async (madhabKey?: MadhabhKey) => {
     try {
       if (!results) return Alert.alert('لا توجد نتيجة للتصدير');
-      const key = madhabKey ?? selectedMadhab;
-      const header = ['heir,count,share,amount'];
-      const rows = results.shares.map(s => `${JSON.stringify(s.name)},${s.count},${JSON.stringify(s.fraction.toString())},${s.amount.toFixed(2)}`);
-      const csv = header.concat(rows).join('\n');
-      const path = `${FileSystem.documentDirectory}merath-report-${Date.now()}.csv`;
-      await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      const csv = generateCSV(results);
+      const path = await saveFile(csv, 'csv');
       await Sharing.shareAsync(path, { mimeType: 'text/csv' });
     } catch (err: any) {
       console.error('CSV export error', err);
       Alert.alert('خطأ', 'فشل إنشاء ملف CSV');
+    }
+  }, [results, selectedMadhab]);
+
+  const handleSaveReport = useCallback(async (type: 'pdf' | 'csv') => {
+    try {
+      if (!results) return Alert.alert('لا توجد نتيجة للحفظ');
+      if (type === 'pdf') {
+        const html = generateReportHTML(results, selectedMadhab);
+        const { uri } = await Print.printToFileAsync({ html });
+        // copy to app storage for persistence
+        const dest = uri; // Print returns file:// uri inside cache; save metadata only
+        const meta = await saveReportMetadata({ path: dest, name: `تقرير_${selectedMadhab}`, madhab: selectedMadhab, type: 'pdf' });
+        Alert.alert('تم الحفظ', 'تم حفظ التقرير مؤقتاً في الجهاز');
+      } else {
+        const csv = generateCSV(results);
+        const path = await saveFile(csv, 'csv');
+        const meta = await saveReportMetadata({ path, name: `تقرير_${selectedMadhab}`, madhab: selectedMadhab, type: 'csv' });
+        Alert.alert('تم الحفظ', 'تم حفظ ملف CSV');
+      }
+    } catch (err: any) {
+      console.error('save report error', err);
+      Alert.alert('خطأ', 'فشل حفظ التقرير');
     }
   }, [results, selectedMadhab]);
 
@@ -561,6 +579,19 @@ export default function HomeScreen() {
                 <ThemedText style={styles.buttonText}>تصدير CSV</ThemedText>
               </Pressable>
             </View>
+            <View style={[styles.buttonGroup, { marginTop: 8 }]}> 
+              <Pressable onPress={() => handleSaveReport('pdf')} style={[styles.button, styles.pdfButton]}>
+                <ThemedText style={styles.buttonText}>حفظ PDF</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => handleSaveReport('csv')} style={[styles.button, styles.csvButton]}>
+                <ThemedText style={styles.buttonText}>حفظ CSV</ThemedText>
+              </Pressable>
+            </View>
+            <View style={[styles.buttonGroup, { marginTop: 8 }]}> 
+              <Pressable onPress={() => (window as any).router?.push('/history')} style={[styles.button, styles.calculateButton]}>
+                <ThemedText style={styles.buttonText}>سجل التقارير</ThemedText>
+              </Pressable>
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -836,5 +867,8 @@ const styles = StyleSheet.create({
   },
   csvButton: {
     backgroundColor: '#2563eb',
+  },
+  historyButton: {
+    backgroundColor: '#0ea5e9',
   },
 });

@@ -60,3 +60,4 @@ Thumbs.db
 *.tgz
 *.tar.gz
 .cache/
+app.config.ts.bak

@@ -8,6 +8,8 @@ import { Colors } from '@/constants/theme';
 import { useInheritanceCalculator } from '@/hooks/useInheritanceCalculator';
 import { usePrintService } from '@/hooks/usePrintService';
 import { FIQH_DATABASE } from '@/lib/inheritance-calculator';
+import { validateEstateData, validateHeirs } from '@/lib/validation';
+import { showToast, ToastContainer } from '@/components/common/Toast';
 
 const MADHABS = [
   { id: 'shafii', name: 'الشافعي', color: '#059669' },
@@ -47,14 +49,16 @@ export default function CalculatorScreen() {
     calculator.calculate();
     if (!calculator.state.error) {
       setShowResults(true);
+      showToast('تم الحساب بنجاح', 'success');
     } else {
-      Alert.alert('خطأ', calculator.state.error);
+      showToast(calculator.state.error, 'error');
     }
   };
 
   const handleReset = () => {
     calculator.reset();
     setShowResults(false);
+    showToast('تم إعادة تعيين البيانات', 'info');
   };
 
   const handlePrint = async () => {
@@ -97,6 +101,7 @@ export default function CalculatorScreen() {
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+      <ToastContainer />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {!showResults ? (
           <>

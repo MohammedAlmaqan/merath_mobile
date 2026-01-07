@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CalculationResult } from '@/lib/inheritance-calculator';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { PieChart } from '@/components/charts/PieChart';
+import { BarChart } from '@/components/charts/BarChart';
 
 interface ResultsDisplayProps {
   result: CalculationResult;
@@ -16,8 +18,16 @@ interface ResultsDisplayProps {
 export function ResultsDisplay({ result, madhhabName, onPrint, onReset }: ResultsDisplayProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
 
   if (!result) return null;
+
+  // Prepare chart data
+  const chartData = result.shares?.map((share, index) => ({
+    name: share.name,
+    value: share.amount || 0,
+    color: ['#059669', '#dc2626', '#a855f7', '#0ea5e9', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'][index % 8],
+  })) || [];
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -48,6 +58,53 @@ export function ResultsDisplay({ result, madhhabName, onPrint, onReset }: Result
           </ThemedText>
         </View>
       </View>
+
+      {/* Chart Toggle */}
+      {chartData.length > 0 && (
+        <>
+          <View style={styles.chartToggle}>
+            <Pressable
+              onPress={() => setChartType('pie')}
+              style={[
+                styles.chartToggleButton,
+                chartType === 'pie' && { backgroundColor: colors.tint },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.chartToggleText,
+                  chartType === 'pie' && { color: '#fff' },
+                ]}
+              >
+                📊 رسم دائري
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setChartType('bar')}
+              style={[
+                styles.chartToggleButton,
+                chartType === 'bar' && { backgroundColor: colors.tint },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.chartToggleText,
+                  chartType === 'bar' && { color: '#fff' },
+                ]}
+              >
+                📈 رسم بياني
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          {/* Charts */}
+          {chartType === 'pie' ? (
+            <PieChart data={chartData} />
+          ) : (
+            <BarChart data={chartData} />
+          )}
+        </>
+      )}
 
       {/* Special Cases */}
       {(result.awlApplied || result.raddApplied || result.bloodRelativesApplied) && (
@@ -177,6 +234,9 @@ const styles = StyleSheet.create({
   summaryCard: { flex: 1, minWidth: '30%', padding: 12, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.02)', borderLeftWidth: 4 },
   summaryLabel: { fontSize: 12, opacity: 0.7, marginBottom: 6 },
   summaryValue: { fontSize: 16 },
+  chartToggle: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  chartToggleButton: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f3f4f6', alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb' },
+  chartToggleText: { fontSize: 13, fontWeight: '600' },
   specialCasesBox: { padding: 12, backgroundColor: '#f0fdf420', borderRadius: 8, borderLeftWidth: 4, borderLeftColor: '#22c55e', marginBottom: 20 },
   specialCasesTitle: { fontSize: 14, marginBottom: 12, color: '#22c55e' },
   specialCaseItem: { marginBottom: 8 },

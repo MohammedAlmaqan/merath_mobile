@@ -67,7 +67,6 @@ export function usePrintService() {
         const errorMessage = error instanceof Error ? error.message : 'حدث خطأ في الطباعة';
         setPrintError(errorMessage);
         Alert.alert('خطأ', `فشل في الطباعة: ${errorMessage}`);
-        console.error('Print error:', error);
       } finally {
         setIsPrinting(false);
       }
@@ -120,7 +119,6 @@ export function usePrintService() {
         const errorMessage = error instanceof Error ? error.message : 'حدث خطأ في حفظ الملف';
         setPrintError(errorMessage);
         Alert.alert('خطأ', `فشل في حفظ الملف: ${errorMessage}`);
-        console.error('Save PDF error:', error);
       } finally {
         setIsPrinting(false);
       }
@@ -162,7 +160,6 @@ export function usePrintService() {
         const errorMessage = error instanceof Error ? error.message : 'حدث خطأ في المشاركة';
         setPrintError(errorMessage);
         Alert.alert('خطأ', `فشل في المشاركة: ${errorMessage}`);
-        console.error('Share error:', error);
       } finally {
         setIsPrinting(false);
       }

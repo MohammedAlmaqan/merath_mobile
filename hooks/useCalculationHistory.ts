@@ -34,7 +34,6 @@ export function useCalculationHistory() {
         setHistory(records.sort((a, b) => b.timestamp - a.timestamp));
       }
     } catch (error) {
-      console.error('Error loading calculation history:', error);
     } finally {
       setLoading(false);
     }
@@ -66,7 +65,6 @@ export function useCalculationHistory() {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
         return newRecord;
       } catch (error) {
-        console.error('Error adding calculation record:', error);
         return null;
       }
     },
@@ -80,7 +78,6 @@ export function useCalculationHistory() {
         setHistory(updatedHistory);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistory));
       } catch (error) {
-        console.error('Error deleting calculation record:', error);
       }
     },
     [history]
@@ -91,7 +88,6 @@ export function useCalculationHistory() {
       setHistory([]);
       await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (error) {
-      console.error('Error clearing calculation history:', error);
     }
   }, []);
 

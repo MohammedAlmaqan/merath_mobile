@@ -2,7 +2,8 @@ import type { CookieOptions, Request } from "express";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
-function isIpAddress(host: string) {
+function isIpAddress(host: string | undefined): boolean {
+  if (!host) return false;
   // Basic IPv4 check and IPv6 presence detection.
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
   return host.includes(":");
@@ -10,12 +11,9 @@ function isIpAddress(host: string) {
 
 function isSecureRequest(req: Request) {
   if (req.protocol === "https") return true;
-
   const forwardedProto = req.headers["x-forwarded-proto"];
   if (!forwardedProto) return false;
-
   const protoList = Array.isArray(forwardedProto) ? forwardedProto : forwardedProto.split(",");
-
   return protoList.some((proto) => proto.trim().toLowerCase() === "https");
 }
 
@@ -24,7 +22,9 @@ function isSecureRequest(req: Request) {
  * e.g., "3000-xxx.manuspre.computer" -> ".manuspre.computer"
  * This allows cookies set by 3000-xxx to be read by 8081-xxx
  */
-function getParentDomain(hostname: string): string | undefined {
+function getParentDomain(hostname: string | undefined): string | undefined {
+  if (!hostname) return undefined;
+  
   // Don't set domain for localhost or IP addresses
   if (LOCAL_HOSTS.has(hostname) || isIpAddress(hostname)) {
     return undefined;

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, TextInput, FlatList, Alert } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, TextInput, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useInheritanceCalculator } from '@/hooks/useInheritanceCalculator';
+import { usePrintService } from '@/hooks/usePrintService';
 import { FIQH_DATABASE } from '@/lib/inheritance-calculator';
 
 const MADHABS = [
@@ -39,6 +40,7 @@ export default function CalculatorScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const calculator = useInheritanceCalculator();
+  const printService = usePrintService();
   const [showResults, setShowResults] = useState(false);
 
   const handleCalculate = () => {
@@ -53,6 +55,42 @@ export default function CalculatorScreen() {
   const handleReset = () => {
     calculator.reset();
     setShowResults(false);
+  };
+
+  const handlePrint = async () => {
+    if (!calculator.state.result) return;
+    const madhhabInfo = calculator.getMadhhabInfo();
+    await printService.printPDF(
+      calculator.state.madhab,
+      madhhabInfo?.name || calculator.state.madhab,
+      calculator.state.estate,
+      calculator.state.heirs,
+      calculator.state.result
+    );
+  };
+
+  const handleSavePDF = async () => {
+    if (!calculator.state.result) return;
+    const madhhabInfo = calculator.getMadhhabInfo();
+    await printService.savePDFToFile(
+      calculator.state.madhab,
+      madhhabInfo?.name || calculator.state.madhab,
+      calculator.state.estate,
+      calculator.state.heirs,
+      calculator.state.result
+    );
+  };
+
+  const handleShare = async () => {
+    if (!calculator.state.result) return;
+    const madhhabInfo = calculator.getMadhhabInfo();
+    await printService.shareReport(
+      calculator.state.madhab,
+      madhhabInfo?.name || calculator.state.madhab,
+      calculator.state.estate,
+      calculator.state.heirs,
+      calculator.state.result
+    );
   };
 
   const madhhabInfo = calculator.getMadhhabInfo();
@@ -259,14 +297,39 @@ export default function CalculatorScreen() {
                 <View style={styles.actionButtons}>
                   <Pressable
                     onPress={handleReset}
-                    style={[styles.button, { backgroundColor: colors.tint }]}
+                    disabled={printService.isPrinting}
+                    style={[styles.button, { backgroundColor: colors.tint, opacity: printService.isPrinting ? 0.6 : 1 }]}
                   >
                     <ThemedText style={styles.buttonText}>جديد</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={[styles.button, { backgroundColor: '#10b981' }]}
+                    onPress={handlePrint}
+                    disabled={printService.isPrinting}
+                    style={[styles.button, { backgroundColor: '#10b981', opacity: printService.isPrinting ? 0.6 : 1 }]}
                   >
-                    <ThemedText style={styles.buttonText}>طباعة</ThemedText>
+                    {printService.isPrinting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <ThemedText style={styles.buttonText}>طباعة</ThemedText>
+                    )}
+                  </Pressable>
+                </View>
+                
+                {/* Additional Actions */}
+                <View style={styles.additionalActions}>
+                  <Pressable
+                    onPress={handleSavePDF}
+                    disabled={printService.isPrinting}
+                    style={[styles.secondaryButton, { opacity: printService.isPrinting ? 0.6 : 1 }]}
+                  >
+                    <ThemedText style={styles.secondaryButtonText}>💾 حفظ PDF</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleShare}
+                    disabled={printService.isPrinting}
+                    style={[styles.secondaryButton, { opacity: printService.isPrinting ? 0.6 : 1 }]}
+                  >
+                    <ThemedText style={styles.secondaryButtonText}>📤 مشاركة</ThemedText>
                   </Pressable>
                 </View>
               </>
@@ -313,4 +376,7 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e5e7eb' },
   tableCell: { flex: 1, fontSize: 12, paddingHorizontal: 8, textAlign: 'center' },
   tableHeaderText: { fontWeight: '600', fontSize: 11 },
+  additionalActions: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  secondaryButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' },
+  secondaryButtonText: { fontWeight: '500', fontSize: 14 },
 });

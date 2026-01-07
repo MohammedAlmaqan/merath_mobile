@@ -32,6 +32,14 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="examples"
+        options={{
+          title: "أمثلة",
+          tabBarIcon: ({ color }) => <MaterialIcons name="lightbulb" size={28} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
         name="compare"
         options={{
           title: "المقارنة",

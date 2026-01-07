@@ -24,11 +24,48 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Tab 1: Calculator */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "الحاسبة",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calculator" color={color} />,
+        }}
+      />
+
+      {/* Tab 2: Comparison */}
+      <Tabs.Screen
+        name="compare"
+        options={{
+          title: "المقارنة",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+        }}
+      />
+
+      {/* Tab 3: Tests */}
+      <Tabs.Screen
+        name="tests"
+        options={{
+          title: "الاختبارات",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.circle.fill" color={color} />,
+        }}
+      />
+
+      {/* Tab 4: Rules */}
+      <Tabs.Screen
+        name="rules"
+        options={{
+          title: "القواعد",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
+        }}
+      />
+
+      {/* Tab 5: Audit Log */}
+      <Tabs.Screen
+        name="audit"
+        options={{
+          title: "السجل",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet" color={color} />,
         }}
       />
     </Tabs>

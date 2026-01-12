@@ -1,12 +1,12 @@
 #!/bin/bash
 # -------------------------------
-# MERATH_MOBILE AUTOMATED BUILD SCRIPT
-# Handles Preview APK and Production builds
+# MERATH_MOBILE AUTOMATED ANDROID BUILD SCRIPT
+# Handles Preview APK and Production builds safely for Free tier
 # -------------------------------
 
 set -e
 
-echo "🚀 MERATH_MOBILE Build Script"
+echo "🚀 MERATH_MOBILE Android Build Script"
 
 # 0️⃣ Select environment
 echo "Select environment:"
@@ -72,22 +72,24 @@ sed -i.bak "s/versionCode: .*/versionCode: $ANDROID_VERSION_CODE/" app.config.ts
 git add package.json package-lock.json app.config.ts
 git commit -m "[$ENV_NAME] Build version bump: $NEW_VERSION" || echo "No changes to commit"
 
-# 6️⃣ Build with EAS
-echo "📱 Triggering EAS build ($ENV_NAME)..."
-BUILD_URL=$(eas build --platform android --profile "$EAS_PROFILE" --non-interactive --json | jq -r '.url')
+# 6️⃣ Trigger Android build with EAS
+echo "📱 Triggering Android build ($ENV_NAME)..."
+BUILD_JSON=$(eas build --platform android --profile "$EAS_PROFILE" --non-interactive --json)
 
-if [[ -z "$BUILD_URL" ]]; then
-  echo "❌ Build failed or URL not returned."
-  exit 1
+# Extract build ID safely
+BUILD_ID=$(echo "$BUILD_JSON" | jq -r 'if type=="array" then .[0].id else .id end')
+echo "✅ Build triggered! Build ID: $BUILD_ID"
+
+# 7️⃣ Check if URL is available (Free tier may not return immediately)
+BUILD_URL=$(echo "$BUILD_JSON" | jq -r 'if type=="array" then .[0].webAppUrl else .webAppUrl end // empty')
+
+if [[ -n "$BUILD_URL" ]]; then
+  DOWNLOAD_PATH="./${ENV_NAME}-app.apk"
+  echo "⬇️ Downloading APK to $DOWNLOAD_PATH..."
+  curl -L "$BUILD_URL" -o "$DOWNLOAD_PATH"
+  echo "🎉 APK ready: $DOWNLOAD_PATH"
+  echo "Install on device using: adb install -r $DOWNLOAD_PATH"
+else
+  echo "⚠️ Build URL not available yet (Free tier). Check Expo dashboard to download APK:"
+  echo "https://expo.dev/accounts/smartengineer/projects/merath_mobile/builds/$BUILD_ID"
 fi
-
-echo "✅ Build triggered! Download URL: $BUILD_URL"
-
-# 7️⃣ Optional: Download APK locally
-DOWNLOAD_PATH="./${ENV_NAME}-app.apk"
-echo "⬇️ Downloading APK to $DOWNLOAD_PATH..."
-curl -L "$BUILD_URL" -o "$DOWNLOAD_PATH"
-
-echo "🎉 APK ready: $DOWNLOAD_PATH"
-echo "Install on device using:"
-echo "adb install -r $DOWNLOAD_PATH"
